@@ -192,7 +192,7 @@ async def on_member_join(member):
         embed.set_footer(text="be normal ;3 | welcome ♱", icon_url=member.avatar.url)
         await channel.send(embed=embed)
 
-    role = discord.utils.get(member.guild.roles, name="member ♱")
+    role = discord.utils.get(member.guild.roles, name="ִ ࣪✮ 🕷 ✮⋆˙")
     if role:
         await member.add_roles(role)
 
