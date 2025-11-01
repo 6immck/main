@@ -217,7 +217,7 @@ async def on_member_join(member):
 # -------------------- TEST CMD --------------------
 @bot.command()
 async def test(ctx):
-    await ctx.send(f"{ctx.author.mention} kys lol")
+    await ctx.send(f"{ctx.author.mention} up")
 
 # -------------------- COIN FLIP EMBED COMMAND --------------------
 @bot.command()
@@ -245,7 +245,7 @@ async def coinflip(ctx, guess: str = None):
         if guess == result:
             embed.add_field(name="result", value=f" the coin landed on **{result}** you guessed correctly!", inline=False)
         else:
-            embed.add_field(name="result", value=f" the coin landed on **{result}** lol kys", inline=False)
+            embed.add_field(name="result", value=f" the coin landed on **{result}** lol", inline=False)
     else:
         embed.add_field(name="result", value=f"the coin landed on **{result}**!", inline=False)
 
