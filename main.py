@@ -100,7 +100,7 @@ class ColoursDropdown(discord.ui.Select):
             "☆⋆˙ gray": "☆⋆˙",
             "✦⋆˙ black": "✦⋆˙",
             "✶⋆˙ purple": "✶⋆˙",
-            "⋆𐙚̊. pink": "⋆𐙚̊."
+            "⋆𐙚̊. pink": "⋆𐙚 ̊."
         }
 
         selected_label = self.values[0]
