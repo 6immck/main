@@ -5,21 +5,23 @@ from threading import Thread
 import os
 import random
 
-# -------------------- flask keep-alive setup --------------------
-app = Flask('')
+# -------------------- Flask keep-alive setup --------------------
+app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Bot is alive!"
+    return "Bot is alive and running on Render!"
 
 def run():
-    app.run(host='0.0.0.0', port=8080)
+    # Use Render’s dynamic port if present, else default to 8080
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
 
 def keep_alive():
-    t = Thread(target=run)
-    t.start()
+    thread = Thread(target=run)
+    thread.start()
 
-# -------------------- discord intents and bot setup --------------------
+# -------------------- Discord intents and bot setup --------------------
 intents = discord.Intents.default()
 intents.guilds = True
 intents.members = True
@@ -27,7 +29,7 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# -------------------- GAMES DROPDOWN --------------------
+# -------------------- Games Dropdown --------------------
 class GamesDropdown(discord.ui.Select):
     def __init__(self):
         options = [
@@ -55,7 +57,7 @@ class GamesDropdown(discord.ui.Select):
 
 class GamesView(discord.ui.View):
     def __init__(self):
-        super().__init__()
+        super().__init__(timeout=None)
         self.add_item(GamesDropdown())
 
 def create_games_embed():
@@ -75,11 +77,10 @@ def create_games_embed():
         ]),
         inline=False
     )
-    # invisible top-right "spacer"
     embed.set_thumbnail(url="https://i.imgur.com/xkBPQe8.png")
     return embed
 
-# -------------------- COLOURS DROPDOWN --------------------
+# -------------------- Colours Dropdown --------------------
 class ColoursDropdown(discord.ui.Select):
     def __init__(self):
         options = [
@@ -104,24 +105,20 @@ class ColoursDropdown(discord.ui.Select):
 
         selected_label = self.values[0]
         role_name = label_to_role.get(selected_label)
-
         if not role_name:
             await interaction.response.send_message("Role not found.", ephemeral=True)
             return
 
-        # Get the new role object
         new_role = discord.utils.get(interaction.guild.roles, name=role_name)
         if not new_role:
             await interaction.response.send_message("Role not found in the server.", ephemeral=True)
             return
 
-        # Remove any other colour roles the user has
         colour_roles = [discord.utils.get(interaction.guild.roles, name=r) for r in label_to_role.values()]
         roles_to_remove = [r for r in colour_roles if r in interaction.user.roles and r != new_role]
         if roles_to_remove:
             await interaction.user.remove_roles(*roles_to_remove)
 
-        # Toggle the selected role
         if new_role in interaction.user.roles:
             await interaction.user.remove_roles(new_role)
             await interaction.response.send_message(f"Removed role: {new_role.name}", ephemeral=True)
@@ -131,7 +128,7 @@ class ColoursDropdown(discord.ui.Select):
 
 class ColoursView(discord.ui.View):
     def __init__(self):
-        super().__init__()
+        super().__init__(timeout=None)
         self.add_item(ColoursDropdown())
 
 def create_colours_embed():
@@ -151,21 +148,10 @@ def create_colours_embed():
         ]),
         inline=False
     )
-    embed.set_thumbnail(url="https://i.imgur.com/xkBPQe8.png")  # invisible image
+    embed.set_thumbnail(url="https://i.imgur.com/xkBPQe8.png")
     return embed
 
-# -------------------- PERSISTENT MENU --------------------
-class GamesView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-        self.add_item(GamesDropdown())
-
-class ColoursView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-        self.add_item(ColoursDropdown())
-
-# -------------------- ROLE MENU COMMAND --------------------
+# -------------------- Role Menu Command --------------------
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def roles(ctx):
@@ -177,17 +163,16 @@ async def roles_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send(f"{ctx.author.mention}, you do not have permission to run this command.")
 
-# -------------------- PING COMMAND --------------------
+# -------------------- Events and Commands --------------------
 @bot.event
 async def on_ready():
-    print(f"Logged in as {bot.user}")
+    print(f"✅ Logged in as {bot.user}")
 
 @bot.command()
 async def ping(ctx):
     latency = round(bot.latency * 1000)
     await ctx.send(f"{ctx.author.mention} latency: {latency}ms")
 
-# -------------------- NEW MEMBER GREETING --------------------
 @bot.event
 async def on_member_join(member):
     channel = discord.utils.get(member.guild.text_channels, name='⋅˚₊‧-୨୧-‧₊˚-⋅')
@@ -197,9 +182,6 @@ async def on_member_join(member):
             description=(
                 f"╭┈┈┈┈┈┈┈┈┈┈ ⋆｡°✩\n"
                 f"┊ hey {member.mention} ♡\n"
-                f"┊\n"
-                f"┊˚₊‧    ☆    ‧₊˚\n"
-                f"┊\n"
                 f"┊ pick your roles in <#1423910903979442277>\n"
                 f"╰┈┈┈┈┈┈┈┈┈┈ ⋆｡°✩"
             ),
@@ -210,32 +192,23 @@ async def on_member_join(member):
         embed.set_footer(text="be normal ;3 | welcome ♱", icon_url=member.avatar.url)
         await channel.send(embed=embed)
 
-    new_member_role = discord.utils.get(member.guild.roles, name="member ♱")
-    if new_member_role:
-        await member.add_roles(new_member_role)
+    role = discord.utils.get(member.guild.roles, name="member ♱")
+    if role:
+        await member.add_roles(role)
 
-# -------------------- TEST CMD --------------------
 @bot.command()
 async def test(ctx):
     await ctx.send(f"{ctx.author.mention} up")
 
-# -------------------- COIN FLIP EMBED COMMAND --------------------
 @bot.command()
 async def coinflip(ctx, guess: str = None):
-    """
-    flip a virtual coin
-    optional: user can guess 'heads' or 'tails'.
-    """
     result = random.choice(["heads", "tails"])
-
-    # Create the embed
     embed = discord.Embed(
         title="🪙 coin flip!",
         description=f"{ctx.author.mention} flipped a coin...",
-        color=discord.Color.from_rgb(255, 105, 180)  # pink sparkle tone
+        color=discord.Color.from_rgb(255, 105, 180)
     )
 
-    # Add result
     if guess:
         guess = guess.lower()
         if guess not in ["heads", "tails"]:
@@ -243,26 +216,20 @@ async def coinflip(ctx, guess: str = None):
             await ctx.send(embed=embed)
             return
         if guess == result:
-            embed.add_field(name="result", value=f" the coin landed on **{result}** you guessed correctly!", inline=False)
+            embed.add_field(name="result", value=f"the coin landed on **{result}** — you guessed correctly!", inline=False)
         else:
-            embed.add_field(name="result", value=f" the coin landed on **{result}** lol", inline=False)
+            embed.add_field(name="result", value=f"the coin landed on **{result}**", inline=False)
     else:
         embed.add_field(name="result", value=f"the coin landed on **{result}**!", inline=False)
 
     await ctx.send(embed=embed)
 
-# -------------------- CLEAR COMMAND --------------------
 @bot.command()
 @commands.has_permissions(manage_messages=True)
 async def clear(ctx, amount: int = 2):
-        """
-        clear messages in a channel
-        default: 2 messages
-        """
-        deleted = await ctx.channel.purge(limit=amount)
-        confirmation = await ctx.send(f"deleted {len(deleted)} messages.")
-        await ctx.send(f"deleted {len(deleted)} messages.", delete_after=5)
+    deleted = await ctx.channel.purge(limit=amount)
+    confirmation = await ctx.send(f"deleted {len(deleted)} messages.", delete_after=5)
 
-# -------------------- keep bot alive --------------------
-keep_alive()  # start Flask server if you’re using Replit or similar
-bot.run(os.getenv("TOKEN"))  # actually connect your bot to Discord
+# -------------------- Keep bot alive --------------------
+keep_alive()
+bot.run(os.getenv("TOKEN"))
