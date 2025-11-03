@@ -168,6 +168,10 @@ async def roles_error(ctx, error):
 async def on_ready():
     print(f"✅ Logged in as {bot.user}")
 
+    # Register persistent dropdowns so they always stay active
+    bot.add_view(GamesView())
+    bot.add_view(ColoursView())
+
 @bot.command()
 async def ping(ctx):
     latency = round(bot.latency * 1000)
