@@ -2,34 +2,422 @@ import discord
 from discord.ext import commands
 from flask import Flask
 from threading import Thread
+from pymongo import MongoClient
 import os
 import random
 
-# -------------------- Flask keep-alive setup --------------------
+# -------------------- discord intents and bot setup, !command --------------------
+intents = discord.Intents.default()
+intents.guilds = True
+intents.members = True
+intents.message_content = True
+
+bot = commands.Bot(command_prefix="!6", intents=intents)
+bot.remove_command("help")
+
+#MONGO-6IMMCKECONOMY - PERSISTENT -------------------------------
+
+#beg
+@bot.command(name="beg")
+@commands.cooldown(1, 10, commands.BucketType.user)
+async def beg(ctx):
+    events = [
+        {"text": "joey's saudi arabian muslim family gave you {amount} coins.", "min": 50, "max": 500},
+        {"text": "you found a wallet on the ground with {amount} coins.", "min": 20, "max": 150},
+        {"text": "you found hayden playing clash royale at the function, robbed him and made {amount} coins.", "min": 10, "max": 100},
+        {"text": "lord gimmick felt generous and gave you {amount} coins", "min": 200, "max": 500},
+        {"text": "hayden beat the shit out of you and you lost {amount} coins", "min": -60, "max": -10},
+    ]
+
+    event = random.choice(events)
+    amount = random.randint(event["min"], event["max"])
+    update_balance(ctx.author.id, amount)
+
+    # color + message formatting
+    if amount > 0:
+        color = discord.Color.from_rgb(0, 255, 0)
+        result = f"🪙 you gained **{amount}** coins!"
+    else:
+        color = discord.Color.from_rgb(252, 63, 63)
+        result = f"💸 you lost **{abs(amount)}** coins!"
+
+    # create embed
+    embed = discord.Embed(
+        title="💰",
+        description=f"{ctx.author.mention}, {event['text'].format(amount=abs(amount))}\n\n{result}",
+        color=color
+    )
+    embed.set_footer(text="use !6bal to check your balance")
+
+    await ctx.send(embed=embed)
+
+#balance
+@bot.command(name="bal")
+async def balance(ctx, member: discord.Member = None):
+    user = member or ctx.author
+    balance = get_balance(user.id)
+    await ctx.send(f"{user.mention} has 💰 {balance} coins.")
+
+#begcooldown
+async def beg_error(ctx, error):
+    if isinstance(error, commands.CommandOnCooldown):
+        await ctx.send(f"⏳ you’re on cooldown! try again in {error.retry_after:.1f} seconds.", delete_after=5)
+
+#coinflip
+@bot.command(name="coinflip", aliases=["cf"])
+async def coinflip(ctx, amount: int, guess: str):
+    guess = guess.lower()
+    if guess in ["heads", "h", "head"]:
+        guess = "heads"
+    elif guess in ["t", "tail", "tails"]:
+        guess = "tails"
+    else:
+       await ctx.send("choose heads or tails. (!6coinflip/cf [amount] [heads/tails])")
+       return
+
+    balance = get_balance(ctx.author.id)
+    if amount <= 0:
+        await ctx.send("bet amount must be greater than 0.")
+        return
+    if amount > balance:
+        await ctx.send("you don’t have enough coins to bet that much.")
+        return
+
+    result = random.choice(["heads", "tails"])
+    if result == guess:
+        update_balance(ctx.author.id, amount)
+        title = "🎉 you won!"
+        result_text = f"the coin landed on **{result}** — you won 💸 **{amount}** coins!"
+        color = discord.Color.green()
+    else:
+        update_balance(ctx.author.id, -amount)
+        title = "<:emoji_45:1433976464063332503> you lost!"
+        result_text = f"the coin landed on **{result}** — you lost 💸 **{amount}** coins."
+        color = discord.Color.red
+
+    new_balance = get_balance(ctx.author.id)
+
+    embed = discord.Embed(
+        title=title,
+        description=f"{ctx.author.mention}, {result_text}\n\n💰 **your new balance:** {new_balance} coins.",
+        color=color
+    )
+    embed.set_footer(text="use !6bal to check your balance")
+    await ctx.send(embed=embed)
+
+
+#blackjack ----------------------------------------------------------------
+active_blackjack_games = set()
+
+class BlackjackView(discord.ui.View):
+    def __init__(self, ctx, bet):
+        super().__init__(timeout=60)
+        self.ctx = ctx
+        self.bet = bet
+        self.player_total = random.randint(2, 11) + random.randint(2, 11)
+        self.dealer_total = random.randint(2, 11)
+        self.standing = False
+
+    async def update_embed(self, interaction=None, end=False):
+        if end:
+            while self.dealer_total < 17:
+                self.dealer_total += random.randint(2, 11)
+
+            if self.player_total > 21:
+                result = "✕ you busted!"
+                color = discord.Color.red()
+                change = -self.bet
+            elif self.dealer_total > 21 or self.player_total > self.dealer_total:
+                result = "✓ you win!"
+                color = discord.Color.green()
+                change = self.bet
+            elif self.player_total < self.dealer_total:
+                result = "✕ dealer wins!"
+                color = discord.Color.red()
+                change = -self.bet
+            else:
+                result = "𖧋 it's a tie!"
+                color = discord.Color.from_rgb(255, 255, 255)
+                change = 0
+
+            update_balance(self.ctx.author.id, change)
+            new_balance = get_balance(self.ctx.author.id)
+
+            embed = discord.Embed(
+                title="♠ blackjack results",
+                description=(
+                    "╭──────────────────────────────╮\n"
+                    f"‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎**your total:** {self.player_total}\n"
+                    f"‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎**dealer's total:** {self.dealer_total}\n"
+                    "╰──────────────────────────────╯\n\n"
+                    f"{result}\n\n"
+                    f"💰 **your new balance:** {new_balance} coins"
+                ),
+                color=color
+            )
+            embed.set_footer(text="use !6bal to check your balance")
+
+            for child in self.children:
+                child.disabled = True
+
+            if self.ctx.author.id in active_blackjack_games:
+                active_blackjack_games.remove(self.ctx.author.id)
+
+            if interaction:
+                await interaction.response.edit_message(embed=embed, view=self)
+            else:
+                await self.ctx.send(embed=embed)
+            return
+
+        embed = discord.Embed(
+            title="♠️ blackjack ♠",
+            description=(
+                "╭──────────────────────────────╮\n"
+                f" ‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎**your total:** {self.player_total}\n"
+                f"‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎ **dealer shows:** {self.dealer_total}\n"
+                "╰──────────────────────────────╯\n\n"
+                f"🃏 hit to draw, or stand to end your turn."
+            ),
+            color=discord.Color.from_rgb(255, 255, 255)
+        )
+        embed.set_footer(text="blackjack ♠ | 6immck")
+
+        if interaction:
+            await interaction.response.edit_message(embed=embed, view=self)
+        else:
+            await self.ctx.send(embed=embed, view=self)
+
+    async def on_timeout(self):
+        if self.ctx.author.id not in active_blackjack_games:
+            return
+        for child in self.children:
+            child.disabled = True
+
+        if self.ctx.author.id in active_blackjack_games:
+            active_blackjack_games.remove(self.ctx.author.id)
+
+        penalty = self.bet // 2
+        update_balance(self.ctx.author.id, -penalty)
+
+        embed = discord.Embed(
+            title="♠ blackjack ♠",
+            description=f"⏰ time's up! you lost **{penalty}** coins for inactivity.",
+            color=discord.Color.red()
+        )
+        await self.ctx.send(embed=embed, delete_after=60)
+
+    @discord.ui.button(label="HIT", style=discord.ButtonStyle.success)
+    async def hit(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.ctx.author:
+            return await interaction.response.send_message("this isn’t your game.", ephemeral=True)
+        self.player_total += random.randint(2, 11)
+        if self.player_total > 21:
+            await self.update_embed(interaction, end=True)
+        else:
+            await self.update_embed(interaction)
+
+    @discord.ui.button(label="STAND", style=discord.ButtonStyle.danger)
+    async def stand(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.ctx.author:
+            return await interaction.response.send_message("this isn’t your game.", ephemeral=True)
+        self.standing = True
+        await self.update_embed(interaction, end=True)
+
+# keep this at the end — your command handler
+@bot.command(name="blackjack", aliases=["bj"])
+async def blackjack(ctx, bet: int):
+    if ctx.author.id in active_blackjack_games:
+        await ctx.send("you're already in a blackjack game. finish it before starting a new one.", delete_after=5)
+        return
+
+    if bet <= 0:
+        await ctx.send("bet must be greater than 0.")
+        return
+
+    balance = get_balance(ctx.author.id)
+    if bet > balance:
+        await ctx.send("you don’t have enough coins to bet that much.")
+        return
+
+    active_blackjack_games.add(ctx.author.id)
+
+    view = BlackjackView(ctx, bet)
+    await view.update_embed()
+
+#donate -----------------------CMD------------------------------------
+
+
+@bot.command(name="donate")
+async def donate(ctx, member: discord.Member, amount: int):
+    if amount <= 0:
+        await ctx.send("donate amount must be greater than 0.")
+        return
+
+    sender_balance = get_balance(ctx.author.id)
+    if amount > sender_balance:
+        await ctx.send("you don’t have enough coins to donate.")
+        return
+
+    # Update both balances
+    update_balance(ctx.author.id, -amount)
+    update_balance(member.id, amount)
+
+    # Create a nice embed
+    embed = discord.Embed(
+        title="donation successful",
+        description=(
+            f"{ctx.author.mention} gave **{amount}** coins to {member.mention} <3\n\n"
+            f"💰 **{ctx.author.display_name}'s new balance:** {get_balance(ctx.author.id)} coins\n"
+            f"💰 **{member.display_name}'s new balance:** {get_balance(member.id)} coins"
+        ),
+        color=discord.Color.from_rgb(255, 255, 255)
+    )
+
+    # Show both avatars in the embed
+    embed.set_thumbnail(url=ctx.author.avatar.url if ctx.author.avatar else ctx.author.default_avatar.url)
+    embed.set_image(url=member.avatar.url if member.avatar else member.default_avatar.url)
+
+    embed.set_footer(text="⋆𐙚 ̊.")
+
+    await ctx.send(embed=embed)
+
+# -------------------- flask keep-alive setup --------------------
 app = Flask(__name__)
 
 @app.route('/')
 def home():
+    print("✅ Received ping on / — keep-alive working")
     return "Bot is alive and running on Render!"
 
 def run():
-    # Use Render’s dynamic port if present, else default to 8080
     port = int(os.environ.get("PORT", 8080))
+    print(f"🌐 Flask server running on port {port}")
     app.run(host='0.0.0.0', port=port)
 
 def keep_alive():
     thread = Thread(target=run)
     thread.start()
 
-# -------------------- Discord intents and bot setup --------------------
-intents = discord.Intents.default()
-intents.guilds = True
-intents.members = True
-intents.message_content = True
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+# -------------------- MongoDB Setup --------------------
+print("Connecting to MongoDB...")
+import certifi
 
-# -------------------- Games Dropdown --------------------
+uri = os.getenv("MONGO_URI")
+if not uri:
+    raise ValueError("❌ MONGO_URI not set in environment variables")
+
+client = MongoClient(uri, tls=True, tlsCAFile=certifi.where(), serverSelectionTimeoutMS=5000)
+
+try:
+    client.admin.command('ping')
+    print("✅ Connected to MongoDB successfully.")
+except Exception as e:
+    print("❌ MongoDB connection failed:", e)
+
+db = client["economy"]
+users = db["balances"]
+
+def get_balance(user_id):
+    user = users.find_one({"_id": user_id})
+    return user["balance"] if user else 0
+
+def update_balance(user_id, amount):
+    users.update_one({"_id": user_id}, {"$inc": {"balance": amount}}, upsert=True)
+
+
+#!6help displays all commands for my bot -------------------------------------------------!!!!!!!!!!!
+class HelpView(discord.ui.View):
+    def __init__(self, is_admin: bool):
+        super().__init__(timeout=60)
+        self.is_admin = is_admin
+
+    @discord.ui.button(label="all cmnds", style=discord.ButtonStyle.primary)
+    async def main_commands(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = discord.Embed(
+            title="all commands",
+            description="\n\n".join([
+                "!6ping - show latency",
+                "!6hayden - shows a hideous idiot",
+                "!6test - test if bot is up",
+                "!6help - show this menu"
+            ]),
+            color=discord.Color.from_rgb(255, 255, 255)
+        )
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    @discord.ui.button(label="admin cmnds", style=discord.ButtonStyle.danger)
+    async def admin_commands(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not self.is_admin:
+            await interaction.response.send_message("you don't have permission to view admin commands.", ephemeral=True)
+            return
+
+        embed = discord.Embed(
+            title="admin commands",
+            description="\n".join([
+                "!6clear - clear messages",
+                "!6roles - post role menus"
+            ]),
+            color=discord.Color.from_rgb(255, 225, 255)
+        )
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    @discord.ui.button(label="currency", style=discord.ButtonStyle.success)
+    async def currency_commands(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = discord.Embed(
+            title="currency commands",
+            description="\n\n".join([
+                "!6bal [@user] - check your or another user’s balance",
+                "!6beg - try your luck to earn coins",
+                "!6coinflip [amount] [heads/tails] - bet coins on a coin toss",
+                "!6donate [@user] [amount] - send coins to someone else",
+            ]),
+            color=discord.Color.from_rgb(255, 255, 255)
+        )
+        await interaction.response.edit_message(embed=embed, view=self)
+
+@bot.command(name="help")
+async def sixhelp(ctx):
+    is_admin = ctx.author.guild_permissions.administrator
+    embed = discord.Embed(
+        title="main commands",
+        description="\n".join([
+            "!6ping - show latency",
+            "!6hayden - shows a hideous idiot",
+            "!6test - test if bot is up",
+            "!6help - show this menu"
+        ]),
+        color=discord.Color.from_rgb(255, 255, 255)
+    )
+
+    view = HelpView(is_admin)
+    await ctx.send(embed=embed, view=view)
+
+#!6ping to display latency -------------------------------------------------------
+@bot.command()
+async def ping(ctx):
+    latency = round(bot.latency * 1000)
+    await ctx.send(f"{ctx.author.mention} latency: {latency}ms")
+
+#!6test command to show bot's online status --------------------------------------
+@bot.command()
+async def test(ctx):
+    await ctx.send(f"{ctx.author.mention} up")
+
+#haydencommand !hayden------------------------------------------
+@bot.command()
+async def hayden(ctx):
+    image_url = "https://i.imgur.com/ZFW9ZsW.jpeg"
+    await ctx.send(image_url)
+
+#clearcommand !clear----------------------------------------------
+@bot.command()
+@commands.has_permissions(manage_messages=True)
+async def clear(ctx, amount: int = 2):
+    deleted = await ctx.channel.purge(limit=amount)
+    confirmation = await ctx.send(f"deleted {len(deleted)} messages.", delete_after=5)
+
+# ---- games dropdown menu --------------------
 class GamesDropdown(discord.ui.Select):
     def __init__(self):
         options = [
@@ -40,7 +428,7 @@ class GamesDropdown(discord.ui.Select):
             discord.SelectOption(label="valorant"),
             discord.SelectOption(label="fortnite")
         ]
-        super().__init__(placeholder="Choose your game role...", min_values=1, max_values=1, options=options)
+        super().__init__(placeholder="choose your game role...", min_values=1, max_values=1, options=options, custom_id="games_dropdown")
 
     async def callback(self, interaction: discord.Interaction):
         selected_role = self.values[0]
@@ -48,12 +436,12 @@ class GamesDropdown(discord.ui.Select):
         if role:
             if role in interaction.user.roles:
                 await interaction.user.remove_roles(role)
-                await interaction.response.send_message(f"Removed role: {role.name}", ephemeral=True)
+                await interaction.response.send_message(f"removed role: {role.name}", ephemeral=True)
             else:
                 await interaction.user.add_roles(role)
-                await interaction.response.send_message(f"Added role: {role.name}", ephemeral=True)
+                await interaction.response.send_message(f"added role: {role.name}", ephemeral=True)
         else:
-            await interaction.response.send_message("Role not found.", ephemeral=True)
+            await interaction.response.send_message("role not found.", ephemeral=True)
 
 class GamesView(discord.ui.View):
     def __init__(self):
@@ -63,24 +451,24 @@ class GamesView(discord.ui.View):
 def create_games_embed():
     embed = discord.Embed(
         title="__choose game roles ☆⋆__",
-        color=discord.Color.from_rgb(4, 4, 4)
+        color=discord.Color.from_rgb(255, 255, 255)
     )
     embed.add_field(
         name="\u200B↓\u200B",
         value="\n".join([
-            "<:30379blackheart:1433934665919496202> ． deadbydaylight",
-            "<:30379blackheart:1433934665919496202> ． rust",
-            "<:30379blackheart:1433934665919496202> ． overwatch",
-            "<:30379blackheart:1433934665919496202> ． minecraft",
-            "<:30379blackheart:1433934665919496202> ． valorant",
-            "<:30379blackheart:1433934665919496202> ． fortnite"
+            "<:52004black:1433934195222118593> ． deadbydaylight",
+            "<:1023gun:1433947005381771305> ． rust",
+            "<:1420coquetteknife:1433970746140393523> ． overwatch",
+            "<:1962gothknife:1433938130896949280> ． rivals",
+            "<:12673aaawings:1433931903387566261> ． valorant",
+            "<:1paw:1433934253028020269> ． fortnite"
         ]),
         inline=False
     )
     embed.set_thumbnail(url="https://i.imgur.com/xkBPQe8.png")
     return embed
 
-# -------------------- Colours Dropdown --------------------
+# -------------------- colours dropdown menu --------------------
 class ColoursDropdown(discord.ui.Select):
     def __init__(self):
         options = [
@@ -91,7 +479,7 @@ class ColoursDropdown(discord.ui.Select):
             discord.SelectOption(label="✶⋆˙ purple"),
             discord.SelectOption(label="⋆𐙚̊. pink")
         ]
-        super().__init__(placeholder="Choose your colour role...", min_values=1, max_values=1, options=options)
+        super().__init__(placeholder="choose your colour role...", min_values=1, max_values=1, options=options, custom_id="colours_dropdown")
 
     async def callback(self, interaction: discord.Interaction):
         label_to_role = {
@@ -106,12 +494,12 @@ class ColoursDropdown(discord.ui.Select):
         selected_label = self.values[0]
         role_name = label_to_role.get(selected_label)
         if not role_name:
-            await interaction.response.send_message("Role not found.", ephemeral=True)
+            await interaction.response.send_message("role not found.", ephemeral=True)
             return
 
         new_role = discord.utils.get(interaction.guild.roles, name=role_name)
         if not new_role:
-            await interaction.response.send_message("Role not found in the server.", ephemeral=True)
+            await interaction.response.send_message("role not found in the server.", ephemeral=True)
             return
 
         colour_roles = [discord.utils.get(interaction.guild.roles, name=r) for r in label_to_role.values()]
@@ -121,10 +509,10 @@ class ColoursDropdown(discord.ui.Select):
 
         if new_role in interaction.user.roles:
             await interaction.user.remove_roles(new_role)
-            await interaction.response.send_message(f"Removed role: {new_role.name}", ephemeral=True)
+            await interaction.response.send_message(f"removed : {new_role.name}", ephemeral=True)
         else:
             await interaction.user.add_roles(new_role)
-            await interaction.response.send_message(f"Added role: {new_role.name}", ephemeral=True)
+            await interaction.response.send_message(f"u are now : {new_role.name}", ephemeral=True)
 
 class ColoursView(discord.ui.View):
     def __init__(self):
@@ -134,7 +522,7 @@ class ColoursView(discord.ui.View):
 def create_colours_embed():
     embed = discord.Embed(
         title="__choose colour roles‧₊˚__",
-        color=discord.Color.from_rgb(4, 4, 4)
+        color=discord.Color.from_rgb(255, 255, 255)
     )
     embed.add_field(
         name="\u200B↓\u200B",
@@ -151,7 +539,7 @@ def create_colours_embed():
     embed.set_thumbnail(url="https://i.imgur.com/xkBPQe8.png")
     return embed
 
-# -------------------- Role Menu Command --------------------
+# -------------------- role menu command --------------------
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def roles(ctx):
@@ -161,21 +549,15 @@ async def roles(ctx):
 @roles.error
 async def roles_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
-        await ctx.send(f"{ctx.author.mention}, you do not have permission to run this command.")
+        await ctx.send(f"{ctx.author.mention}, you do not have perms to use this command u peasant.")
 
 # -------------------- Events and Commands --------------------
 @bot.event
 async def on_ready():
-    print(f"✅ Logged in as {bot.user}")
+    print(f"✅ logged in as {bot.user}")
 
-    # Register persistent dropdowns so they always stay active
     bot.add_view(GamesView())
     bot.add_view(ColoursView())
-
-@bot.command()
-async def ping(ctx):
-    latency = round(bot.latency * 1000)
-    await ctx.send(f"{ctx.author.mention} latency: {latency}ms")
 
 @bot.event
 async def on_member_join(member):
@@ -189,7 +571,7 @@ async def on_member_join(member):
                 f"┊ pick your roles in <#1423910903979442277>\n"
                 f"╰┈┈┈┈┈┈┈┈┈┈ ⋆｡°✩"
             ),
-            color=discord.Color.from_rgb(95, 48, 112)
+            color=discord.Color.from_rgb(255, 255, 255)
         )
         embed.set_thumbnail(url=member.avatar.url)
         embed.set_image(url="https://i.imgur.com/vL3vMhC.jpeg")
@@ -199,40 +581,6 @@ async def on_member_join(member):
     role = discord.utils.get(member.guild.roles, name="ִ ࣪✮ 🕷 ✮⋆˙")
     if role:
         await member.add_roles(role)
-
-@bot.command()
-async def test(ctx):
-    await ctx.send(f"{ctx.author.mention} up")
-
-@bot.command()
-async def coinflip(ctx, guess: str = None):
-    result = random.choice(["heads", "tails"])
-    embed = discord.Embed(
-        title="🪙 coin flip!",
-        description=f"{ctx.author.mention} flipped a coin...",
-        color=discord.Color.from_rgb(255, 105, 180)
-    )
-
-    if guess:
-        guess = guess.lower()
-        if guess not in ["heads", "tails"]:
-            embed.description += "\n❌ please guess either 'heads' or 'tails'!"
-            await ctx.send(embed=embed)
-            return
-        if guess == result:
-            embed.add_field(name="result", value=f"the coin landed on **{result}** — you guessed correctly!", inline=False)
-        else:
-            embed.add_field(name="result", value=f"the coin landed on **{result}**", inline=False)
-    else:
-        embed.add_field(name="result", value=f"the coin landed on **{result}**!", inline=False)
-
-    await ctx.send(embed=embed)
-
-@bot.command()
-@commands.has_permissions(manage_messages=True)
-async def clear(ctx, amount: int = 2):
-    deleted = await ctx.channel.purge(limit=amount)
-    confirmation = await ctx.send(f"deleted {len(deleted)} messages.", delete_after=5)
 
 # -------------------- Keep bot alive --------------------
 keep_alive()
