@@ -282,12 +282,44 @@ async def donate(ctx, member: discord.Member, amount: int):
     await ctx.send(embed=embed)
 
 # -------------------- flask keep-alive setup --------------------
+# -------------------- flask keep-alive setup --------------------
+from flask import Flask, request
+from datetime import datetime
+import requests, time, threading, os
+from threading import Thread
+
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    print("✅ Received ping on / — keep-alive working")
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    user_agent = request.headers.get('User-Agent', 'Unknown')
+
+    # identify which service is pinging
+    if "UptimeRobot" in user_agent:
+        source = "🌐 UptimeRobot"
+    elif "BetterStack" in user_agent or "Better Uptime" in user_agent:
+        source = "🧭 BetterStack"
+    elif "python-requests" in user_agent:
+        source = "🤖 Self-Pinger"
+    else:
+        source = "🕵️ Other"
+
+    print(f"{source} → Ping received at {now}")
     return "Bot is alive and running on Render!"
+
+# optional: self-pinger to keep Render awake
+def self_ping():
+    while True:
+        try:
+            requests.get("https://main-bfc1.onrender.com/")  # or /health if you add one later
+            print("🔁 self-ping sent to Render")
+        except Exception as e:
+            print("⚠️ self-ping failed:", e)
+        time.sleep(300)  # every 5 minutes
+
+# start the background self-ping thread
+threading.Thread(target=self_ping, daemon=True).start()
 
 def run():
     port = int(os.environ.get("PORT", 8080))
@@ -297,7 +329,6 @@ def run():
 def keep_alive():
     thread = Thread(target=run)
     thread.start()
-
 
 # -------------------- MongoDB Setup --------------------
 print("Connecting to MongoDB...")
