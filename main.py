@@ -494,24 +494,6 @@ def create_colours_embed():
     embed.set_thumbnail(url="https://i.imgur.com/xkBPQe8.png")
     return embed
 
-
-# -------------------- Events and Commands --------------------
-@bot.event
-async def on_ready():
-    print(f"✅ logged in as {bot.user}")
-
-    # persistent views
-    bot.add_view(GamesView())
-    bot.add_view(ColoursView())
-
-    # sync slash commands
-    try:
-        await bot.tree.sync()
-        print("✅ slash commands synced.")
-    except Exception as e:
-        print("❌ slash sync failed:", e)
-
-
 @bot.event
 async def on_member_join(member):
     channel = discord.utils.get(member.guild.text_channels, name='⋅˚₊‧-୨୧-‧₊˚-⋅')
@@ -611,7 +593,24 @@ class CountingGame(commands.Cog):
             data["participants"].clear()
 
 
-bot.add_cog(CountingGame(bot))
+async def setup_cogs():
+    await bot.add_cog(CountingGame(bot))
+
+# Run it right after bot is ready
+@bot.event
+async def on_ready():
+    print(f"✅ logged in as {bot.user}")
+
+    await setup_cogs()  # <-- add this line
+
+    bot.add_view(GamesView())
+    bot.add_view(ColoursView())
+
+    try:
+        await bot.tree.sync()
+        print("✅ slash commands synced.")
+    except Exception as e:
+        print("❌ slash sync failed:", e)
 
 # -------------------- flask keep-alive setup --------------------
 from flask import request
