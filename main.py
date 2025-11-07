@@ -59,6 +59,7 @@ async def balance(ctx, member: discord.Member = None):
     await ctx.send(f"{user.mention} has 💰 {balance} coins.")
 
 #begcooldown
+@beg.error
 async def beg_error(ctx, error):
     if isinstance(error, commands.CommandOnCooldown):
         await ctx.send(f"⏳ you’re on cooldown! try again in {error.retry_after:.1f} seconds.", delete_after=5)
@@ -93,7 +94,7 @@ async def coinflip(ctx, amount: int, guess: str):
         update_balance(ctx.author.id, -amount)
         title = "<:emoji_45:1433976464063332503> you lost!"
         result_text = f"the coin landed on **{result}** — you lost 💸 **{amount}** coins."
-        color = discord.Color.red
+        color = discord.Color.red()
 
     new_balance = get_balance(ctx.author.id)
 
@@ -612,6 +613,87 @@ async def on_member_join(member):
     role = discord.utils.get(member.guild.roles, name="ִ ࣪✮ 🕷 ✮⋆˙")
     if role:
         await member.add_roles(role)
+
+# -------------------- counting minigame --------------------
+class CountingGame(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        self.channel_data = {}  # {channel_id: {"next": int, "last_user": int, "participants": set()}}
+
+    def get_data(self, channel_id: int):
+        if channel_id not in self.channel_data:
+            self.channel_data[channel_id] = {"next": 1, "last_user": None, "participants": set()}
+        return self.channel_data[channel_id]
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        if message.author.bot:
+            return
+
+        # 👇 add this right here
+        if message.content.startswith(bot.command_prefix):
+            return  # ignore normal commands like !6ping, !6bal, etc.
+
+        channel_id = message.channel.id
+        data = self.get_data(channel_id)
+
+        # optional: restrict to a specific channel
+        # if channel_id != 123456789012345678:
+        #     return
+
+        # try to read the message as a number
+        try:
+            num = int(message.content.strip())
+        except ValueError:
+            return  # ignore non-numbers
+
+        expected = data["next"]
+        last_user = data["last_user"]
+
+        # prevent same user twice
+        if last_user == message.author.id:
+            await message.channel.send(f"{message.author.mention} you can’t count twice in a row! restarting at 1.")
+            data["next"] = 1
+            data["last_user"] = None
+            data["participants"].clear()
+            return
+
+        # correct number
+        if num == expected:
+            data["next"] += 1
+            data["last_user"] = message.author.id
+            data["participants"].add(message.author.id)
+
+            # milestone reached
+            if num == 100:
+                reward = 100
+                participants = data["participants"]
+
+                for user_id in participants:
+                    update_balance(user_id, reward)  # directly add coins to MongoDB
+
+                await message.channel.send(
+                    f"🎉 **milestone reached!** count hit 100 — everyone who participated earned **{reward} coins**!"
+                )
+
+                # reset
+                data["next"] = 1
+                data["last_user"] = None
+                data["participants"].clear()
+
+        else:
+            # wrong number, reset
+            await message.channel.send(
+                f"{message.author.mention} messed up! expected `{expected}`, restarting at 1.",
+                delete_after=20
+            )
+            data["next"] = 1
+            data["last_user"] = None
+            data["participants"].clear()
+
+
+# add it to the bot
+bot.add_cog(CountingGame(bot))
 
 # -------------------- Keep bot alive --------------------
 keep_alive()
