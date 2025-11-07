@@ -13,7 +13,7 @@ intents.guilds = True
 intents.members = True
 intents.message_content = True
 
-bot = commands.Bot(intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents)
 
 # create /6 command group
 class SixGroup(app_commands.Group):
