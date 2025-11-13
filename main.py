@@ -17,6 +17,15 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 # create /6 command group
 class SixGroup(app_commands.Group):
+    @app_commands.command(name="count", description="show the current count in this channel")
+    async def count_cmd(self, interaction: discord.Interaction):
+        cog = interaction.client.get_cog("CountingGame")
+        if not cog:
+            await interaction.response.send_message("counting game not loaded.")
+            return
+        data = cog.get_data(interaction.channel.id)
+        await interaction.response.send_message(f"current count: {data['next']-1}")
+
     def __init__(self):
         super().__init__(name="6", description="6immck bot commands")
 
@@ -523,10 +532,11 @@ async def on_member_join(member):
 
 
 # -------------------- counting minigame (kept as-is) --------------------
+
 class CountingGame(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.channel_data = {}  # {channel_id: {"next": int, "last_user": int, "participants": set()}}
+        self.channel_data = {}
 
     def get_data(self, channel_id: int):
         if channel_id not in self.channel_data:
@@ -537,28 +547,20 @@ class CountingGame(commands.Cog):
     async def on_message(self, message: discord.Message):
         if message.author.bot:
             return
+        if isinstance(self.bot.command_prefix, str) and message.content.startswith(self.bot.command_prefix):
+            return
 
-        # keep old behavior: ignore commands that start with your prefix
-        if hasattr(self.bot, "command_prefix") and isinstance(self.bot.command_prefix, str):
-            if message.content.startswith(self.bot.command_prefix):
-                return
-
-        channel_id = message.channel.id
-        data = self.get_data(channel_id)
+        data = self.get_data(message.channel.id)
 
         try:
             num = int(message.content.strip())
-        except ValueError:
+        except:
             return
 
         expected = data["next"]
-        last_user = data["last_user"]
 
-        if last_user == message.author.id:
-            await message.channel.send(
-                f"{message.author.mention} you can’t count twice in a row! restarting at 1.",
-                delete_after=5
-            )
+        if data["last_user"] == message.author.id:
+            await message.channel.send(f"{message.author.mention} you can’t count twice in a row! restarting at 1.")
             data["next"] = 1
             data["last_user"] = None
             data["participants"].clear()
@@ -568,32 +570,31 @@ class CountingGame(commands.Cog):
             data["next"] += 1
             data["last_user"] = message.author.id
             data["participants"].add(message.author.id)
+            await message.add_reaction("✅")
 
-            if num == 100:
-                reward = 100
-                participants = data["participants"]
+            # milestone logic
+            milestone = None
+            if expected in [10,20,50,75]:
+                milestone = expected
+            elif expected < 1000 and expected % 25 == 0:
+                milestone = expected
+            elif expected >= 1000 and expected % 50 == 0:
+                milestone = expected
 
-                for user_id in participants:
-                    update_balance(user_id, reward)
+            if milestone:
+                reward = milestone if milestone <= 1000 else 1000
+                for uid in data["participants"]:
+                    update_balance(uid, reward)
+                await message.channel.send(f"🎉 milestone reached! count hit {milestone} — everyone who participated earned {reward} coins!")
 
-                await message.channel.send(
-                    f"🎉 **milestone reached!** count hit 100 — everyone who participated earned **{reward} coins**!"
-                )
-
-                data["next"] = 1
-                data["last_user"] = None
-                data["participants"].clear()
         else:
-            await message.channel.send(
-                f"{message.author.mention} messed up! expected `{expected}`, restarting at 1.",
-                delete_after=20
-            )
+            await message.channel.send(f"{message.author.mention} messed up! expected `{expected}`, restarting at 1.")
             data["next"] = 1
             data["last_user"] = None
             data["participants"].clear()
 
 
-async def setup_cogs():
+def setup_cogs():
     await bot.add_cog(CountingGame(bot))
 
 # Run it right after bot is ready
