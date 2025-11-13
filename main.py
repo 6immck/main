@@ -284,7 +284,7 @@ class BlackjackView(discord.ui.View):
             await interaction.response.edit_message(embed=embed, view=self)
         else:
             # first message
-            await self.ctx.followup.send(embed=embed, view=self)
+            await self.ctx.response.send_message(embed=embed, view=self)
 
     async def on_timeout(self):
         if self.ctx.user.id not in active_blackjack_games:
