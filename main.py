@@ -13,7 +13,7 @@ intents.guilds = True
 intents.members = True
 intents.message_content = True
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix="!6", intents=intents)
 
 # create /6 command group
 class SixGroup(app_commands.Group):
@@ -23,9 +23,8 @@ class SixGroup(app_commands.Group):
         if not cog:
             await interaction.response.send_message("counting game not loaded.")
             return
-        data = cog.get_data(interaction.channel.id)
-        await interaction.response.send_message(f"current count: {data['next']-1}")
-
+        d = cog.get_data(interaction.channel.id)
+        await interaction.response.send_message(f"current count: {d['next'] - 1}")
     def __init__(self):
         super().__init__(name="6", description="6immck bot commands")
 
@@ -561,20 +560,18 @@ class CountingGame(commands.Cog):
 
         if data["last_user"] == message.author.id:
             await message.channel.send(f"{message.author.mention} you can’t count twice in a row! restarting at 1.")
-            data["next"] = 1
-            data["last_user"] = None
-            data["participants"].clear()
+            data.update({"next": 1, "last_user": None, "participants": set()})
             return
 
         if num == expected:
             data["next"] += 1
             data["last_user"] = message.author.id
             data["participants"].add(message.author.id)
+
             await message.add_reaction("✅")
 
-            # milestone logic
             milestone = None
-            if expected in [10,20,50,75]:
+            if expected in [10, 20, 50, 75]:
                 milestone = expected
             elif expected < 1000 and expected % 25 == 0:
                 milestone = expected
@@ -585,16 +582,14 @@ class CountingGame(commands.Cog):
                 reward = milestone if milestone <= 1000 else 1000
                 for uid in data["participants"]:
                     update_balance(uid, reward)
-                await message.channel.send(f"🎉 milestone reached! count hit {milestone} — everyone who participated earned {reward} coins!")
-
+                await message.channel.send(
+                    f"🎉 milestone reached! count hit {milestone} — everyone who participated earned {reward} coins!"
+                )
         else:
             await message.channel.send(f"{message.author.mention} messed up! expected `{expected}`, restarting at 1.")
-            data["next"] = 1
-            data["last_user"] = None
-            data["participants"].clear()
+            data.update({"next": 1, "last_user": None, "participants": set()})
 
-
-def setup_cogs():
+async def setup_cogs():
     await bot.add_cog(CountingGame(bot))
 
 # Run it right after bot is ready
@@ -685,7 +680,7 @@ def update_balance(user_id, amount):
     users.update_one({"_id": user_id}, {"$inc": {"balance": amount}}, upsert=True)
 
 # set prefix so counting game can ignore "!6" like before
-bot.command_prefix = "!6"
+
 
 # global handler for slash cooldowns (replacement for your old beg_error)
 @bot.tree.error
