@@ -21,10 +21,10 @@ class SixGroup(app_commands.Group):
     async def count_cmd(self, interaction: discord.Interaction):
         cog = interaction.client.get_cog("CountingGame")
         if not cog:
-            await interaction.response.send_message("counting game not loaded.")
+            await interaction.followup.send("counting game not loaded.")
             return
         d = cog.get_data(interaction.channel.id)
-        await interaction.response.send_message(f"current count: {d['next'] - 1}")
+        await interaction.followup.send(f"current count: {d['next'] - 1}")
     def __init__(self):
         super().__init__(name="6", description="6immck bot commands")
 
@@ -56,14 +56,14 @@ class SixGroup(app_commands.Group):
             color=color
         )
         embed.set_footer(text="use /6 bal to check your balance")
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     # -------------------- balance --------------------
     @app_commands.command(name="bal", description="check your or another user's balance")
     async def balance(self, interaction: discord.Interaction, member: discord.Member | None = None):
         user = member or interaction.user
         balance = get_balance(user.id)
-        await interaction.response.send_message(f"{user.mention} has 💰 {balance} coins.")
+        await interaction.followup.send(f"{user.mention} has 💰 {balance} coins.")
 
     # -------------------- coinflip --------------------
     @app_commands.command(name="coinflip", description="bet coins on a coin toss")
@@ -75,15 +75,15 @@ class SixGroup(app_commands.Group):
         elif guess in ["t", "tail", "tails"]:
             guess = "tails"
         else:
-            await interaction.response.send_message("choose heads or tails. (/6 coinflip [amount] [heads/tails])")
+            await interaction.followup.send("choose heads or tails. (/6 coinflip [amount] [heads/tails])")
             return
 
         balance = get_balance(interaction.user.id)
         if amount <= 0:
-            await interaction.response.send_message("bet amount must be greater than 0.")
+            await interaction.followup.send("bet amount must be greater than 0.")
             return
         if amount > balance:
-            await interaction.response.send_message("you don’t have enough coins to bet that much.")
+            await interaction.followup.send("you don’t have enough coins to bet that much.")
             return
 
         result = random.choice(["heads", "tails"])
@@ -105,23 +105,24 @@ class SixGroup(app_commands.Group):
             color=color
         )
         embed.set_footer(text="use /6 bal to check your balance")
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     # -------------------- blackjack --------------------
     @app_commands.command(name="blackjack", description="play blackjack with coins")
     @app_commands.describe(bet="amount to bet")
     async def blackjack(self, interaction: discord.Interaction, bet: int):
         if interaction.user.id in active_blackjack_games:
-            await interaction.response.send_message("you're already in a blackjack game.", ephemeral=True)
+            await interaction.followup.send("you're already in a blackjack game.", ephemeral=True)
             return
         if bet <= 0:
-            await interaction.response.send_message("bet must be greater than 0.")
+            await interaction.followup.send("bet must be greater than 0.")
             return
         balance = get_balance(interaction.user.id)
         if bet > balance:
-            await interaction.response.send_message("you don’t have enough coins to bet that much.")
+            await interaction.followup.send("you don’t have enough coins to bet that much.")
             return
         active_blackjack_games.add(interaction.user.id)
+        await interaction.response.defer()
         view = BlackjackView(interaction, bet)
         await view.update_embed()
 
@@ -130,11 +131,11 @@ class SixGroup(app_commands.Group):
     @app_commands.describe(member="person to donate to", amount="amount to send")
     async def donate(self, interaction: discord.Interaction, member: discord.Member, amount: int):
         if amount <= 0:
-            await interaction.response.send_message("donate amount must be greater than 0.")
+            await interaction.followup.send("donate amount must be greater than 0.")
             return
         sender_balance = get_balance(interaction.user.id)
         if amount > sender_balance:
-            await interaction.response.send_message("you don’t have enough coins to donate.")
+            await interaction.followup.send("you don’t have enough coins to donate.")
             return
 
         update_balance(interaction.user.id, -amount)
@@ -151,7 +152,7 @@ class SixGroup(app_commands.Group):
         embed.set_thumbnail(url=interaction.user.display_avatar.url)
         embed.set_image(url=member.display_avatar.url)
         embed.set_footer(text="⋆𐙚 ̊.")
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     # -------------------- help --------------------
     @app_commands.command(name="help", description="show help menu")
@@ -168,37 +169,37 @@ class SixGroup(app_commands.Group):
             color=discord.Color.from_rgb(255, 255, 255)
         )
         view = HelpView(is_admin)
-        await interaction.response.send_message(embed=embed, view=view)
+        await interaction.followup.send(embed=embed, view=view)
 
     # -------------------- ping --------------------
     @app_commands.command(name="ping", description="show latency")
     async def ping(self, interaction: discord.Interaction):
         latency = round(bot.latency * 1000)
-        await interaction.response.send_message(f"{interaction.user.mention} latency: {latency}ms")
+        await interaction.followup.send(f"{interaction.user.mention} latency: {latency}ms")
 
     # -------------------- test --------------------
     @app_commands.command(name="test", description="check if bot is up")
     async def test(self, interaction: discord.Interaction):
-        await interaction.response.send_message(f"{interaction.user.mention} up")
+        await interaction.followup.send(f"{interaction.user.mention} up")
 
     # -------------------- hayden --------------------
     @app_commands.command(name="hayden", description="shows a hideous idiot")
     async def hayden(self, interaction: discord.Interaction):
         image_url = "https://i.imgur.com/ZFW9ZsW.jpeg"
-        await interaction.response.send_message(image_url)
+        await interaction.followup.send(image_url)
 
     # -------------------- clear --------------------
     @app_commands.command(name="clear", description="clear messages")
     @app_commands.checks.has_permissions(manage_messages=True)
     async def clear(self, interaction: discord.Interaction, amount: int = 2):
         deleted = await interaction.channel.purge(limit=amount)
-        await interaction.response.send_message(f"deleted {len(deleted)} messages.", ephemeral=True)
+        await interaction.followup.send(f"deleted {len(deleted)} messages.", ephemeral=True)
 
     # -------------------- roles --------------------
     @app_commands.command(name="roles", description="post role menus")
     @app_commands.checks.has_permissions(administrator=True)
     async def roles(self, interaction: discord.Interaction):
-        await interaction.response.send_message("posting role menus...", ephemeral=True)
+        await interaction.followup.send("posting role menus...", ephemeral=True)
         await interaction.channel.send(embed=create_games_embed(), view=GamesView())
         await interaction.channel.send(embed=create_colours_embed(), view=ColoursView())
 
@@ -284,7 +285,7 @@ class BlackjackView(discord.ui.View):
             await interaction.response.edit_message(embed=embed, view=self)
         else:
             # first message
-            await self.ctx.response.send_message(embed=embed, view=self)
+            await self.ctx.followup.send(embed=embed, view=self)
 
     async def on_timeout(self):
         if self.ctx.user.id not in active_blackjack_games:
@@ -309,7 +310,7 @@ class BlackjackView(discord.ui.View):
     @discord.ui.button(label="HIT", style=discord.ButtonStyle.success)
     async def hit(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.ctx.user.id:
-            return await interaction.response.send_message("this isn’t your game.", ephemeral=True)
+            return await interaction.followup.send("this isn’t your game.", ephemeral=True)
         self.player_total += random.randint(2, 11)
         if self.player_total > 21:
             await self.update_embed(interaction, end=True)
@@ -319,7 +320,7 @@ class BlackjackView(discord.ui.View):
     @discord.ui.button(label="STAND", style=discord.ButtonStyle.danger)
     async def stand(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.ctx.user.id:
-            return await interaction.response.send_message("this isn’t your game.", ephemeral=True)
+            return await interaction.followup.send("this isn’t your game.", ephemeral=True)
         self.standing = True
         await self.update_embed(interaction, end=True)
 
@@ -347,7 +348,7 @@ class HelpView(discord.ui.View):
     @discord.ui.button(label="admin cmnds", style=discord.ButtonStyle.danger)
     async def admin_commands(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not self.is_admin:
-            await interaction.response.send_message("you don't have permission to view admin commands.", ephemeral=True)
+            await interaction.followup.send("you don't have permission to view admin commands.", ephemeral=True)
             return
 
         embed = discord.Embed(
@@ -394,12 +395,12 @@ class GamesDropdown(discord.ui.Select):
         if role:
             if role in interaction.user.roles:
                 await interaction.user.remove_roles(role)
-                await interaction.response.send_message(f"removed role: {role.name}", ephemeral=True)
+                await interaction.followup.send(f"removed role: {role.name}", ephemeral=True)
             else:
                 await interaction.user.add_roles(role)
-                await interaction.response.send_message(f"added role: {role.name}", ephemeral=True)
+                await interaction.followup.send(f"added role: {role.name}", ephemeral=True)
         else:
-            await interaction.response.send_message("role not found.", ephemeral=True)
+            await interaction.followup.send("role not found.", ephemeral=True)
 
 
 class GamesView(discord.ui.View):
@@ -455,12 +456,12 @@ class ColoursDropdown(discord.ui.Select):
         selected_label = self.values[0]
         role_name = label_to_role.get(selected_label)
         if not role_name:
-            await interaction.response.send_message("role not found.", ephemeral=True)
+            await interaction.followup.send("role not found.", ephemeral=True)
             return
 
         new_role = discord.utils.get(interaction.guild.roles, name=role_name)
         if not new_role:
-            await interaction.response.send_message("role not found.", ephemeral=True)
+            await interaction.followup.send("role not found.", ephemeral=True)
             return
 
         colour_roles = [discord.utils.get(interaction.guild.roles, name=r) for r in label_to_role.values()]
@@ -470,10 +471,10 @@ class ColoursDropdown(discord.ui.Select):
 
         if new_role in interaction.user.roles:
             await interaction.user.remove_roles(new_role)
-            await interaction.response.send_message(f"removed colour: {new_role.name}", ephemeral=True)
+            await interaction.followup.send(f"removed colour: {new_role.name}", ephemeral=True)
         else:
             await interaction.user.add_roles(new_role)
-            await interaction.response.send_message(f"added colour: {new_role.name}", ephemeral=True)
+            await interaction.followup.send(f"added colour: {new_role.name}", ephemeral=True)
 
 
 class ColoursView(discord.ui.View):
@@ -686,7 +687,7 @@ def update_balance(user_id, amount):
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error):
     if isinstance(error, app_commands.CommandOnCooldown):
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"⏳ you’re on cooldown! try again in {error.retry_after:.1f} seconds.",
             ephemeral=True
         )
