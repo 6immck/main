@@ -15,6 +15,9 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+# keep track of users currently playing blackjack to prevent concurrent games
+active_blackjack_games: set[int] = set()
+
 # create /6 command group
 class SixGroup(app_commands.Group):
     def __init__(self):
