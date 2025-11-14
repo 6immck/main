@@ -200,12 +200,12 @@ class SixGroup(app_commands.Group):
 # register group
 bot.tree.add_command(SixGroup())
 
-# ------------- continue BlackjackView (same logic as your original) -------------
+# ------------- continue blackjackview -------------
 class BlackjackView(discord.ui.View):
     def __init__(self, interaction, bet):
         super().__init__(timeout=60)
         self.interaction = interaction
-        self.ctx = interaction  # to reuse your old naming
+        self.ctx = interaction 
         self.bet = bet
         self.player_total = random.randint(2, 11) + random.randint(2, 11)
         self.dealer_total = random.randint(2, 11)
@@ -278,7 +278,7 @@ class BlackjackView(discord.ui.View):
         if interaction:
             await interaction.response.edit_message(embed=embed, view=self)
         else:
-            # first message
+            # first msg
             await self.ctx.response.send_message(embed=embed, view=self)
 
     async def on_timeout(self):
@@ -295,7 +295,7 @@ class BlackjackView(discord.ui.View):
 
         embed = discord.Embed(
             title="♠ blackjack ♠",
-            description=f"⏰ time's up! you lost **{penalty}** coins for inactivity.",
+            description=f"time's up. you lost **{penalty}** coins for being afk.",
             color=discord.Color.red()
         )
         # send to the same channel user used the command in
@@ -319,7 +319,7 @@ class BlackjackView(discord.ui.View):
         await self.update_embed(interaction, end=True)
 
 
-# ------------- HelpView (kept same style, just updated to /6 text) -------------
+# ------------- helpview (kept same style, just updated to /6 text) -------------
 class HelpView(discord.ui.View):
     def __init__(self, is_admin: bool):
         super().__init__(timeout=60)
@@ -342,7 +342,7 @@ class HelpView(discord.ui.View):
     @discord.ui.button(label="admin cmnds", style=discord.ButtonStyle.danger)
     async def admin_commands(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not self.is_admin:
-            await interaction.response.send_message("you don't have permission to view admin commands.", ephemeral=True)
+            await interaction.response.send_message("you don't have perms to view admin commands.", ephemeral=True)
             return
 
         embed = discord.Embed(
@@ -381,7 +381,7 @@ class GamesDropdown(discord.ui.Select):
             discord.SelectOption(label="valorant"),
             discord.SelectOption(label="fortnite")
         ]
-        super().__init__(placeholder="choose your game role...", min_values=1, max_values=1, options=options, custom_id="games_dropdown")
+        super().__init__(placeholder="𖤝...", min_values=1, max_values=1, options=options, custom_id="games_dropdown")
 
     async def callback(self, interaction: discord.Interaction):
         selected_role = self.values[0]
@@ -405,7 +405,7 @@ class GamesView(discord.ui.View):
 
 def create_games_embed():
     embed = discord.Embed(
-        title="__choose game roles ☆⋆__",
+        title="__choose game roles.ᐟ__",
         color=discord.Color.from_rgb(255, 255, 255)
     )
     embed.add_field(
@@ -428,23 +428,23 @@ def create_games_embed():
 class ColoursDropdown(discord.ui.Select):
     def __init__(self):
         options = [
-            discord.SelectOption(label="★⋆˙ red"),
-            discord.SelectOption(label="✮⋆˙ white"),
-            discord.SelectOption(label="☆⋆˙ gray"),
-            discord.SelectOption(label="✦⋆˙ black"),
-            discord.SelectOption(label="✶⋆˙ purple"),
-            discord.SelectOption(label="⋆𐙚̊. pink")
+            discord.SelectOption(label="ღ red"),
+            discord.SelectOption(label="𖹭 white"),
+            discord.SelectOption(label="ꨄ︎ gray"),
+            discord.SelectOption(label="‹𝟹 black"),
+            discord.SelectOption(label="ღ purple"),
+            discord.SelectOption(label="𑣲 pink")
         ]
-        super().__init__(placeholder="choose your colour role...", min_values=1, max_values=1, options=options, custom_id="colours_dropdown")
+        super().__init__(placeholder="𖤝...", min_values=1, max_values=1, options=options, custom_id="colours_dropdown")
 
     async def callback(self, interaction: discord.Interaction):
         label_to_role = {
-            "★⋆˙ red": "★⋆˙",
-            "✮⋆˙ white": "✮⋆˙",
-            "☆⋆˙ gray": "☆⋆˙",
-            "✦⋆˙ black": "✦⋆˙",
-            "✶⋆˙ purple": "✶⋆˙",
-            "⋆𐙚̊. pink": "⋆𐙚 ̊."
+            "ღ red": "ღ",
+            "𖹭 white": "𖹭",
+            "ꨄ︎ gray": "ꨄ︎",
+            "‹𝟹 black": "‹𝟹",
+            "ღ purple": "ღ",
+            "𑣲 pink": "𑣲"
         }
 
         selected_label = self.values[0]
@@ -468,7 +468,7 @@ class ColoursDropdown(discord.ui.Select):
             await interaction.response.send_message(f"removed colour: {new_role.name}", ephemeral=True)
         else:
             await interaction.user.add_roles(new_role)
-            await interaction.response.send_message(f"added colour: {new_role.name}", ephemeral=True)
+            await interaction.response.send_message(f"changed colour: {new_role.name}", ephemeral=True)
 
 
 class ColoursView(discord.ui.View):
@@ -479,18 +479,18 @@ class ColoursView(discord.ui.View):
 
 def create_colours_embed():
     embed = discord.Embed(
-        title="__choose colour roles‧₊˚__",
+        title="__choose colour role.ᐟ__",
         color=discord.Color.from_rgb(255, 255, 255)
     )
     embed.add_field(
         name="\u200B↓\u200B",
         value="\n".join([
-            "<a:71329butterfliesred:1433962590752604241> ． red ★",
-            "<a:1butterflys:1433931924895830026> ． white ᯓ",
-            "<a:92149uzigrey:1433975133684633650> ． gray ☆",
-            "<a:51011uziblack:1433972913895374958> ． black 𓍼",
-            "<a:66721butterflypurple:1433935080606273586> ． purple ★",
-            "<a:8838butterflypink:1433935561638543562> ． pink 𐙚̊"
+            "<a:71329butterfliesred:1433962590752604241> ． red ღ",
+            "<a:1butterflys:1433931924895830026> ． white 𖹭",
+            "<a:92149uzigrey:1433975133684633650> ． gray ꨄ︎",
+            "<a:51011uziblack:1433972913895374958> ． black ‹𝟹",
+            "<a:66721butterflypurple:1433935080606273586> ． purple ღ",
+            "<a:8838butterflypink:1433935561638543562> ． pink 𑣲"
         ]),
         inline=False
     )
@@ -517,12 +517,12 @@ async def on_member_join(member):
         embed.set_image(url="https://i.imgur.com/vL3vMhC.jpeg")
         await channel.send(embed=embed)
 
-    role = discord.utils.get(member.guild.roles, name="ִ ࣪✮ 🕷 ✮⋆˙")
+    role = discord.utils.get(member.guild.roles, name="𑣲 membr")
     if role:
         try:
             await member.add_roles(role)
         except discord.Forbidden:
-            print("⚠️ Missing permission to assign join role.")
+            print("⚠️ missing permission to assign join role.")
 
 
 # -------------------- counting minigame (kept as-is) --------------------
@@ -602,7 +602,7 @@ async def setup_cogs():
 # Run it right after bot is ready
 @bot.event
 async def on_ready():
-    print(f"✅ logged in as {bot.user}")
+    print(f"✅ {bot.user} online.")
 
     await setup_cogs()  # <-- add this line
 
@@ -661,7 +661,7 @@ def keep_alive():
     thread.start()
 
 # -------------------- MongoDB Setup --------------------
-print("Connecting to MongoDB...")
+print("connecting to MONGODB...")
 import certifi
 
 uri = os.getenv("MONGO_URI")
@@ -672,9 +672,9 @@ client = MongoClient(uri, tls=True, tlsCAFile=certifi.where(), serverSelectionTi
 
 try:
     client.admin.command('ping')
-    print("✅ Connected to MongoDB successfully.")
+    print("✅ connected to MONGODB database, econ synced.")
 except Exception as e:
-    print("❌ MongoDB connection failed:", e)
+    print("❌ MONGODB connection failed:", e)
 
 db = client["economy"]
 users = db["balances"]
@@ -701,6 +701,7 @@ async def on_app_command_error(interaction: discord.Interaction, error):
         # optional: print for debug
         print("slash error:", error)
 
-# -------------------- Keep bot alive --------------------
+# -------------------- keep bot alive --------------------
 keep_alive()
 bot.run(os.getenv("TOKEN"))
+# -------------------- end --------------------
